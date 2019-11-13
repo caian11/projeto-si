@@ -19,7 +19,7 @@ class Mailbox:
         def types():
             return(Mailbox.Type.BOOL, Mailbox.Type.NUMBER, Mailbox.Type.TEXT)
 
-    headerBytes = '\x01\x00\x82\x9e'.encode('latin-1')
+    headerBytes = '\x01\x00\x81\x9e'.encode('latin-1')
 
     def raw_bytes(data):
         """
@@ -37,7 +37,7 @@ class Mailbox:
             raise TypeError('Unknown type {}'.format(type))
 
         nameBytes = (name + '\x00').encode('latin-1')
-        nameLen   = len(name)
+        nameLen   = len(nameBytes)
 
         if type == Mailbox.Type.BOOL:
             contentBytes = struct.pack('B', 1 if value == True else 0)
@@ -50,8 +50,8 @@ class Mailbox:
 
         contentLen = len(contentBytes)
 
-        # 4ByteHeader + NameLenByte + Name + \0 + ContentLen2Bytes + Content
-        totalLen   = nameLen + contentLen + 8
+        # 4ByteHeader + NameLenByte + NameBytes + ContentLen2Bytes + Content
+        totalLen   = nameLen + contentLen + 7
 
         return(struct.pack(
             '<H4sB{}sH{}s'.format(nameLen+1,contentLen),
@@ -80,10 +80,12 @@ class Mailbox:
         # Check that we have a Mailbox message header
         header = (struct.unpack_from('<4s', message, 2))[0]
         if header != Mailbox.headerBytes:
-            raise BufferError('Not a Mailbox message')
+            raise BufferError('Not a Mailbox message {} != {}'.format(
+                header, Mailbox.headerBytes
+            ))
 
         # Get the name and its length
-        nameLen    = (struct.unpack_from('<B', message, 6))[0]
+        nameLen    = (struct.unpack_from('<B', message, 6))[0] - 1
         name, null =  struct.unpack_from('<{}sB'.format(nameLen), message, 7)
 
         if null != 0:
@@ -120,7 +122,7 @@ class Mailbox:
             if len(content) != 1:
                 raise TypeError('Wrong size for a boolean')
 
-            value = (struct.unpack('B', content))[0]
+            value = True if (struct.unpack('B', content))[0] else False
 
         if type == Mailbox.Type.NUMBER:
             if len(content) != 4:
