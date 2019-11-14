@@ -95,7 +95,7 @@ class Mailbox:
         totalLen = nameLen + valueLen + 7
 
         payload = struct.pack(
-            '<H4sB{}sH{}s'.format(nameLen+1,valueLen),
+            '<H4sB{}sH{}s'.format(nameLen,valueLen),
             totalLen, Mailbox.headerBytes,
             nameLen, nameBytes,
             valueLen, valueBytes
@@ -141,7 +141,9 @@ class Mailbox:
         name = name.decode('latin-1')
 
         # Get the value and its length
-        valueLen = (struct.unpack_from('<H', payload, 9 + nameLen))[0]
+        valueLen = (struct.unpack_from('<H', payload, 8 + nameLen))[0]
+
+        print("Name {} NameLen {} ValueLen {}".format(name,nameLen,valueLen))
 
         if 8 + nameLen + valueLen != mailboxSize:
             raise BufferError(
@@ -151,7 +153,7 @@ class Mailbox:
             )
 
         valueBytes = (struct.unpack_from(
-            '<{}s'.format(valueLen), payload, 11 + nameLen
+            '<{}s'.format(valueLen), payload, 10 + nameLen
         ))[0]
 
         # If no explicit type was given, attempt to work it out
