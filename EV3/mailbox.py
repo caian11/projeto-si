@@ -16,19 +16,16 @@ class Mailbox:
         NUMBER = 2
         TEXT   = 3
 
-        def types():
-            return(Mailbox.Type.BOOL, Mailbox.Type.NUMBER, Mailbox.Type.TEXT)
-
     headerBytes = '\x01\x00\x81\x9e'.encode('latin-1')
 
-    def __init__(self, name, value, type, payload):
+    def __init__(self, name, value, fmt, payload):
         """
         Base object with all the data
         """
 
         self.name    = name
         self.value   = value
-        self.type    = type
+        self.fmt     = fmt
         self.payload = payload
 
     def __str__(self):
@@ -36,89 +33,22 @@ class Mailbox:
         String representation of the mailbox
         """
 
-        return 'Name: {} Value: {} Type: {} Payload:\n{}'.format(
-            self.name, self.value, self.type, self.payload
+        return 'Name: {} Value: {} Format: {} Payload:\n{}'.format(
+            self.name, self.value, self.fmt, self.payload
         )
 
     @staticmethod
-    def _decode_as(payload, type):
-        """
-        Decode a payload based on the supplied type.
-        """
-
-        if type not in Mailbox.Type.types():
-            raise TypeError('Unknown type {}'.format(type))
-
-        if type == Mailbox.Type.BOOL:
-            if len(payload) != 1:
-                raise TypeError('Wrong size for a boolean')
-
-            value = True if (struct.unpack('B', payload))[0] else False
-
-        if type == Mailbox.Type.NUMBER:
-            if len(payload) != 4:
-                raise TypeError('Wrong size for a float')
-
-            value = (struct.unpack('f', payload))[0]
-
-        if type == Mailbox.Type.TEXT:
-            value = payload[:-1].decode('latin-1')
-
-        return value
-
-    @classmethod
-    def encode(cls, name, value, type):
-        """
-        Create a mailbox based on a name, value and type.
-
-        Encode the message based on those paremeters.
-        """
-
-        if type not in Mailbox.Type.types():
-            raise TypeError('Unknown type {}'.format(type))
-
-        nameBytes = (name + '\x00').encode('latin-1')
-        nameLen   = len(nameBytes)
-
-        if type == Mailbox.Type.BOOL:
-            valueBytes = struct.pack('B', 1 if value == True else 0)
-
-        if type == Mailbox.Type.NUMBER:
-            valueBytes = struct.pack('f',float(value))
-
-        if type == Mailbox.Type.TEXT:
-            valueBytes = (value + '\x00').encode('latin-1')
-
-        valueLen = len(valueBytes)
-
-        # 4ByteHeader + NameLenByte + NameBytes + ValueLen2Bytes + ValueBytes
-        totalLen = nameLen + valueLen + 7
-
-        payload = struct.pack(
-            '<H4sB{}sH{}s'.format(nameLen,valueLen),
-            totalLen, Mailbox.headerBytes,
-            nameLen, nameBytes,
-            valueLen, valueBytes
-        )
-
-        return cls(name,value,type,payload)
-
-    @classmethod
-    def decode(cls,payload, type=None):
+    def _decode(payload, fmt=None):
         """
         Decode a Mailbox message to its name and value.
 
-        
-        If no explicit type is given, attempt to determine that from the
-        length of the contents. An explit type is allowed to ensure that
-        a number is treated as a number. Really small numbers could be
-        determined to be a string.
+        Attempt to determine the type from the length of the contents, unless an
+        explicit type (fmt) was given.
         """
-
-        mailboxSize = (struct.unpack_from('<H', payload, 0))[0]
 
         # Shortest message is a boolean:
         # HHHH L N 0 LL B = 10 bytes
+        mailboxSize = (struct.unpack_from('<H', payload, 0))[0]
         if mailboxSize < 10:
             raise BufferError(
                 'Payload is too small: {} < 10'.format(mailboxSize)
@@ -143,11 +73,9 @@ class Mailbox:
         # Get the value and its length
         valueLen = (struct.unpack_from('<H', payload, 8 + nameLen))[0]
 
-        print("Name {} NameLen {} ValueLen {}".format(name,nameLen,valueLen))
-
         if 8 + nameLen + valueLen != mailboxSize:
             raise BufferError(
-              'Mailbox size error: Packet={} != Expected={}'.format(
+              'Mailbox size error: Actual={} != Expected={}'.format(
                   mailboxSize, 8 + nameLen + valueLen
               )
             )
@@ -156,12 +84,12 @@ class Mailbox:
             '<{}s'.format(valueLen), payload, 10 + nameLen
         ))[0]
 
-        # If no explicit type was given, attempt to work it out
-        if type == None:
-            type  = Mailbox.Type.TEXT
+        if fmt == None:
+            # Attempt to work out the type. Assume text to start.
+            fmt  = Mailbox.Type.TEXT
 
             if len(valueBytes) == 1:
-                type = Mailbox.Type.BOOL
+                fmt = Mailbox.Type.BOOL
 
             # A 3 char string is indistinguishable from a float in terms of
             # length. A string will end in a \x00 but so can certain floats.
@@ -170,18 +98,86 @@ class Mailbox:
 
             if (len(valueBytes) == 4 and
                 (valueBytes[-1] != 0 or 0 in valueBytes[0:3])):
-                type  = Mailbox.Type.NUMBER
+                fmt  = Mailbox.Type.NUMBER
 
-        value = Mailbox._decode_as(valueBytes, type)
+        # Double check the type as it may have been supplied.
+        if fmt not in Mailbox.Type:
+            raise TypeError('Unknown type {}'.format(fmt))
 
-        return cls(name, value, type, payload)
+        if fmt == Mailbox.Type.BOOL:
+            if len(valueBytes) != 1:
+                raise TypeError('Wrong size for a boolean')
 
-    def decode_as(self, type):
+            value = True if (struct.unpack('B', valueBytes))[0] else False
+
+        if fmt == Mailbox.Type.NUMBER:
+            if len(valueBytes) != 4:
+                raise TypeError('Wrong size for a float')
+
+            value = (struct.unpack('f', valueBytes))[0]
+
+        if fmt == Mailbox.Type.TEXT:
+            value = valueBytes[:-1].decode('latin-1')
+
+        return name, value, fmt
+
+    @classmethod
+    def encode(cls, name, value, fmt):
         """
-        Decode the object's payload based on the supplied type.
+        Create a mailbox based on a name, value and type (fmt).
+
+        Encode the message based on those parameters.
         """
 
-        return Mailbox._decode_as(self.payload, type)
+        if fmt not in Mailbox.Type:
+            raise TypeError('Unknown type {}'.format(fmt))
+
+        nameBytes = (name + '\x00').encode('latin-1')
+        nameLen   = len(nameBytes)
+
+        if fmt == Mailbox.Type.BOOL:
+            valueBytes = struct.pack('B', 1 if value == True else 0)
+
+        if fmt == Mailbox.Type.NUMBER:
+            valueBytes = struct.pack('f',float(value))
+
+        if fmt == Mailbox.Type.TEXT:
+            valueBytes = (value + '\x00').encode('latin-1')
+
+        valueLen = len(valueBytes)
+
+        # 4ByteHeader + NameLenByte + NameBytes + ValueLen2Bytes + ValueBytes
+        totalLen = nameLen + valueLen + 7
+
+        payload = struct.pack(
+            '<H4sB{}sH{}s'.format(nameLen,valueLen),
+            totalLen, Mailbox.headerBytes,
+            nameLen, nameBytes,
+            valueLen, valueBytes
+        )
+
+        return cls(name,value,fmt,payload)
+
+    @classmethod
+    def decode(cls, payload):
+        """
+        Create a new Mailbox object based upon its payload
+        """
+
+        name, value, fmt = Mailbox._decode(payload)
+
+        return cls(name, value, fmt, payload)
+
+    def force_number(self):
+        """
+        Change this object's type and value to a float
+        """
+        self.fmt  = Mailbox.Type.NUMBER
+
+        name, value, fmt = Mailbox._decode(self.payload, Mailbox.Type.NUMBER)
+
+        self.fmt   = fmt
+        self.value = value
 
     def raw_bytes(self):
         """
