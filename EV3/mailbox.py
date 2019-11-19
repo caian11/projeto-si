@@ -172,8 +172,6 @@ class Mailbox:
         """
         Change this object's type and value to a float
         """
-        self.fmt  = Mailbox.Type.NUMBER
-
         name, value, fmt = Mailbox._decode(self.payload, Mailbox.Type.NUMBER)
 
         self.fmt   = fmt
@@ -210,3 +208,9 @@ if __name__ == '__main__':
         print('Decode --------------------')
         print(decoded)
         print()
+
+        if test[0] == 'ReallySmall':
+            print('Forcing to a number')
+            decoded.force_number()
+            print(decoded)
+            print()
