@@ -117,6 +117,8 @@ class Mailbox:
             value = (struct.unpack('f', valueBytes))[0]
 
         if fmt == Mailbox.Type.TEXT:
+            if valueBytes[-1] != 0:
+                raise BufferError('Text value not NULL terminated')
             value = valueBytes[:-1].decode('latin-1')
 
         return name, value, fmt
