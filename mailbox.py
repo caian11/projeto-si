@@ -1,8 +1,25 @@
 #!/usr/bin/env python3
+
+#    A Python3 class for encoding and decoding EV3g Mailbox messages
+#    Copyright (C) 2019 Jerry Nicholls
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+    
 import struct
 from enum import Enum
 
-class Mailbox:
+class EV3Mailbox:
     """
     Class to handle the encoding and decoding of the EV3g Mailbox byte stream.
     """
@@ -56,9 +73,9 @@ class Mailbox:
 
         # Check that we have a Mailbox message header
         header = (struct.unpack_from('<4s', payload, 2))[0]
-        if header != Mailbox.headerBytes:
+        if header != EV3Mailbox.headerBytes:
             raise BufferError('Not a Mailbox message {} != {}'.format(
-                header, Mailbox.headerBytes
+                header, EV3Mailbox.headerBytes
             ))
 
         # Get the name and its length
@@ -86,10 +103,10 @@ class Mailbox:
 
         if fmt == None:
             # Attempt to work out the type. Assume text to start.
-            fmt  = Mailbox.Type.TEXT
+            fmt  = EV3Mailbox.Type.TEXT
 
             if len(valueBytes) == 1:
-                fmt = Mailbox.Type.BOOL
+                fmt = EV3Mailbox.Type.BOOL
 
             # A 3 char string is indistinguishable from a float in terms of
             # length. A string will end in a \x00 but so can certain floats.
@@ -98,25 +115,25 @@ class Mailbox:
 
             if (len(valueBytes) == 4 and
                 (valueBytes[-1] != 0 or 0 in valueBytes[0:3])):
-                fmt  = Mailbox.Type.NUMBER
+                fmt  = EV3Mailbox.Type.NUMBER
 
         # Double check the type as it may have been supplied.
-        if fmt not in Mailbox.Type:
+        if fmt not in EV3Mailbox.Type:
             raise TypeError('Unknown type {}'.format(fmt))
 
-        if fmt == Mailbox.Type.BOOL:
+        if fmt == EV3Mailbox.Type.BOOL:
             if len(valueBytes) != 1:
                 raise TypeError('Wrong size for a boolean')
 
             value = True if (struct.unpack('B', valueBytes))[0] else False
 
-        if fmt == Mailbox.Type.NUMBER:
+        if fmt == EV3Mailbox.Type.NUMBER:
             if len(valueBytes) != 4:
                 raise TypeError('Wrong size for a float')
 
             value = (struct.unpack('f', valueBytes))[0]
 
-        if fmt == Mailbox.Type.TEXT:
+        if fmt == EV3Mailbox.Type.TEXT:
             if valueBytes[-1] != 0:
                 raise BufferError('Text value not NULL terminated')
                 
@@ -132,19 +149,19 @@ class Mailbox:
         Encode the message based on those parameters.
         """
 
-        if fmt not in Mailbox.Type:
+        if fmt not in EV3Mailbox.Type:
             raise TypeError('Unknown type {}'.format(fmt))
 
         nameBytes = (name + '\x00').encode('latin-1')
         nameLen   = len(nameBytes)
 
-        if fmt == Mailbox.Type.BOOL:
+        if fmt == EV3Mailbox.Type.BOOL:
             valueBytes = struct.pack('B', 1 if value == True else 0)
 
-        if fmt == Mailbox.Type.NUMBER:
+        if fmt == EV3Mailbox.Type.NUMBER:
             valueBytes = struct.pack('f',float(value))
 
-        if fmt == Mailbox.Type.TEXT:
+        if fmt == EV3Mailbox.Type.TEXT:
             valueBytes = (value + '\x00').encode('latin-1')
 
         valueLen = len(valueBytes)
@@ -154,7 +171,7 @@ class Mailbox:
 
         payload = struct.pack(
             '<H4sB{}sH{}s'.format(nameLen,valueLen),
-            totalLen, Mailbox.headerBytes,
+            totalLen, EV3Mailbox.headerBytes,
             nameLen, nameBytes,
             valueLen, valueBytes
         )
@@ -167,7 +184,7 @@ class Mailbox:
         Create a new Mailbox object based upon its payload
         """
 
-        name, value, fmt = Mailbox._decode(payload)
+        name, value, fmt = EV3Mailbox._decode(payload)
 
         return cls(name, value, fmt, payload)
 
@@ -175,7 +192,7 @@ class Mailbox:
         """
         Change this object's type and value to a float
         """
-        name, value, fmt = Mailbox._decode(self.payload, Mailbox.Type.NUMBER)
+        name, value, fmt = EV3Mailbox._decode(self.payload, EV3Mailbox.Type.NUMBER)
 
         self.fmt   = fmt
         self.value = value
@@ -189,25 +206,25 @@ class Mailbox:
 
 if __name__ == '__main__':
     tests = [
-        ['monty','python',Mailbox.Type.TEXT],
-        ['true',True,Mailbox.Type.BOOL],
-        ['T',True,Mailbox.Type.BOOL],
-        ['false',False,Mailbox.Type.BOOL],
-        ['F',False,Mailbox.Type.BOOL],
-        ['number',3.141,Mailbox.Type.NUMBER],
-        ['zero',0,Mailbox.Type.NUMBER],
-        ['ZERO','000',Mailbox.Type.TEXT],
-        ['ReallySmall',5.90052E-39,Mailbox.Type.NUMBER],
+        ['monty','python',EV3Mailbox.Type.TEXT],
+        ['true',True,EV3Mailbox.Type.BOOL],
+        ['T',True,EV3Mailbox.Type.BOOL],
+        ['false',False,EV3Mailbox.Type.BOOL],
+        ['F',False,EV3Mailbox.Type.BOOL],
+        ['number',3.141,EV3Mailbox.Type.NUMBER],
+        ['zero',0,EV3Mailbox.Type.NUMBER],
+        ['ZERO','000',EV3Mailbox.Type.TEXT],
+        ['ReallySmall',5.90052E-39,EV3Mailbox.Type.NUMBER],
     ]
 
     for test in tests:
-        message = Mailbox.encode(test[0], test[1], test[2])
+        message = EV3Mailbox.encode(test[0], test[1], test[2])
         print('Encode --------------------')
         print(message)
         #print(message.raw_bytes())
 
         payload = message.payload
-        decoded = Mailbox.decode(payload)
+        decoded = EV3Mailbox.decode(payload)
         print('Decode --------------------')
         print(decoded)
         print()
