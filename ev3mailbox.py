@@ -142,12 +142,21 @@ class EV3Mailbox:
         return name, value, fmt
 
     @classmethod
-    def encode(cls, name, value, fmt):
+    def encode(cls, name, value, fmt=None):
         """
         Create a mailbox based on a name, value and type (fmt).
 
         Encode the message based on those parameters.
         """
+
+        # Attempt to define the fmt based on the instance type of the value
+        if fmt == None:
+            if isinstance(value, (bool)):
+                fmt = EV3Mailbox.Type.BOOL
+            elif isinstance(value, (int, float)):
+                fmt = EV3Mailbox.Type.NUMBER
+            elif isinstance(value, (int, str)):
+                fmt = EV3Mailbox.Type.TEXT
 
         if fmt not in EV3Mailbox.Type:
             raise TypeError('Unknown type {}'.format(fmt))
@@ -206,19 +215,19 @@ class EV3Mailbox:
 
 if __name__ == '__main__':
     tests = [
-        ['monty','python',EV3Mailbox.Type.TEXT],
-        ['true',True,EV3Mailbox.Type.BOOL],
-        ['T',True,EV3Mailbox.Type.BOOL],
-        ['false',False,EV3Mailbox.Type.BOOL],
-        ['F',False,EV3Mailbox.Type.BOOL],
-        ['number',3.141,EV3Mailbox.Type.NUMBER],
-        ['zero',0,EV3Mailbox.Type.NUMBER],
-        ['ZERO','000',EV3Mailbox.Type.TEXT],
-        ['ReallySmall',5.90052E-39,EV3Mailbox.Type.NUMBER],
+        ['monty','python'],
+        ['true',True],
+        ['T',True],
+        ['false',False],
+        ['F',False],
+        ['number',3.141],
+        ['zero',0],
+        ['ZERO','000'],
+        ['ReallySmall',5.90052E-39],
     ]
 
     for test in tests:
-        message = EV3Mailbox.encode(test[0], test[1], test[2])
+        message = EV3Mailbox.encode(test[0], test[1])
         print('Encode --------------------')
         print(message)
         #print(message.raw_bytes())
