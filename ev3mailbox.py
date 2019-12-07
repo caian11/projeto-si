@@ -17,32 +17,22 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
     
 import struct
-from enum import Enum
 
 class EV3Mailbox:
     """
     Class to handle the encoding and decoding of the EV3g Mailbox byte stream.
     """
 
-    class Type(Enum):
-        """
-        Simple enums to define the message types.
-        """
-
-        BOOL   = 1
-        NUMBER = 2
-        TEXT   = 3
-
     headerBytes = '\x01\x00\x81\x9e'.encode('latin-1')
 
-    def __init__(self, name, value, fmt, payload):
+    def __init__(self, name, value, d_type, payload):
         """
         Base object with all the data
         """
 
         self.name    = name
         self.value   = value
-        self.fmt     = fmt
+        self.d_type  = d_type
         self.payload = payload
 
     def __str__(self):
@@ -50,17 +40,15 @@ class EV3Mailbox:
         String representation of the mailbox
         """
 
-        return 'Name: {} Value: {} Format: {} Payload:\n{}'.format(
-            self.name, self.value, self.fmt, self.payload
-        )
+        return 'Mailbox: {}={}'.format(self.name, self.value)
 
     @staticmethod
-    def _decode(payload, fmt=None):
+    def _decode(payload, d_type=None):
         """
         Decode a Mailbox message to its name and value.
 
         Attempt to determine the type from the length of the contents, unless an
-        explicit type (fmt) was given.
+        explicit type (d_type) was given.
         """
 
         # Shortest message is a boolean:
@@ -101,12 +89,12 @@ class EV3Mailbox:
             '<{}s'.format(valueLen), payload, 10 + nameLen
         ))[0]
 
-        if fmt == None:
+        if d_type == None:
             # Attempt to work out the type. Assume text to start.
-            fmt  = EV3Mailbox.Type.TEXT
+            d_type  = str
 
             if len(valueBytes) == 1:
-                fmt = EV3Mailbox.Type.BOOL
+                d_type = bool
 
             # A 3 char string is indistinguishable from a float in terms of
             # length. A string will end in a \x00 but so can certain floats.
@@ -115,62 +103,57 @@ class EV3Mailbox:
 
             if (len(valueBytes) == 4 and
                 (valueBytes[-1] != 0 or 0 in valueBytes[0:3])):
-                fmt  = EV3Mailbox.Type.NUMBER
+                d_type  = float
 
         # Double check the type as it may have been supplied.
-        if fmt not in EV3Mailbox.Type:
-            raise TypeError('Unknown type {}'.format(fmt))
+        if d_type not in (bool, int, float, str):
+            raise TypeError('Unknown type {}'.format(d_type))
 
-        if fmt == EV3Mailbox.Type.BOOL:
+        if d_type == bool:
             if len(valueBytes) != 1:
                 raise TypeError('Wrong size for a boolean')
 
             value = True if (struct.unpack('B', valueBytes))[0] else False
 
-        if fmt == EV3Mailbox.Type.NUMBER:
+        if d_type in (int, float):
             if len(valueBytes) != 4:
-                raise TypeError('Wrong size for a float')
+                raise TypeError('Wrong size for a number')
 
             value = (struct.unpack('f', valueBytes))[0]
 
-        if fmt == EV3Mailbox.Type.TEXT:
+        if d_type == str:
             if valueBytes[-1] != 0:
                 raise BufferError('Text value not NULL terminated')
                 
             value = valueBytes[:-1].decode('latin-1')
 
-        return name, value, fmt
+        return name, value, d_type
 
     @classmethod
-    def encode(cls, name, value, fmt=None):
+    def encode(cls, name, value, d_type=None):
         """
-        Create a mailbox based on a name, value and type (fmt).
+        Create a mailbox based on a name, value and type (d_type).
 
         Encode the message based on those parameters.
         """
 
-        # Attempt to define the fmt based on the instance type of the value
-        if fmt == None:
-            if isinstance(value, (bool)):
-                fmt = EV3Mailbox.Type.BOOL
-            elif isinstance(value, (int, float)):
-                fmt = EV3Mailbox.Type.NUMBER
-            elif isinstance(value, (int, str)):
-                fmt = EV3Mailbox.Type.TEXT
+        # Attempt to define the d_type based on the instance type of the value
+        if d_type == None:
+            d_type = type(value)
 
-        if fmt not in EV3Mailbox.Type:
-            raise TypeError('Unknown type {}'.format(fmt))
+        if d_type not in (bool, int, float, str):
+            raise TypeError('Unable to handle type {}'.format(d_type))
 
         nameBytes = (name + '\x00').encode('latin-1')
         nameLen   = len(nameBytes)
 
-        if fmt == EV3Mailbox.Type.BOOL:
+        if d_type == bool:
             valueBytes = struct.pack('B', 1 if value == True else 0)
 
-        if fmt == EV3Mailbox.Type.NUMBER:
+        if d_type in (int, float):
             valueBytes = struct.pack('f',float(value))
 
-        if fmt == EV3Mailbox.Type.TEXT:
+        if d_type == str:
             valueBytes = (value + '\x00').encode('latin-1')
 
         valueLen = len(valueBytes)
@@ -185,7 +168,7 @@ class EV3Mailbox:
             valueLen, valueBytes
         )
 
-        return cls(name,value,fmt,payload)
+        return cls(name,value,d_type,payload)
 
     @classmethod
     def decode(cls, payload):
@@ -193,17 +176,17 @@ class EV3Mailbox:
         Create a new Mailbox object based upon its payload
         """
 
-        name, value, fmt = EV3Mailbox._decode(payload)
+        name, value, d_type = EV3Mailbox._decode(payload)
 
-        return cls(name, value, fmt, payload)
+        return cls(name, value, d_type, payload)
 
     def force_number(self):
         """
         Change this object's type and value to a float
         """
-        name, value, fmt = EV3Mailbox._decode(self.payload, EV3Mailbox.Type.NUMBER)
+        name, value, d_type = EV3Mailbox._decode(self.payload, float)
 
-        self.fmt   = fmt
+        self.d_type   = d_type
         self.value = value
 
     def raw_bytes(self):
