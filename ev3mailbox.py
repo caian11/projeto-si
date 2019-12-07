@@ -138,11 +138,18 @@ class EV3Mailbox:
         """
 
         # Attempt to define the d_type based on the instance type of the value
+        # or coerce it based on the supplied type
         if d_type == None:
             d_type = type(value)
 
         if d_type not in (bool, int, float, str):
             raise TypeError('Unable to handle type {}'.format(d_type))
+        else:
+            s_type = type(value)
+            try:
+                value = d_type(value)
+            except:
+                raise TypeError('Unable to coerce type {} to {}'.format(s_type,d_type))
 
         nameBytes = (name + '\x00').encode('latin-1')
         nameLen   = len(nameBytes)
