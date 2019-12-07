@@ -76,8 +76,8 @@ class EV3Messages():
                     bt_socket.settimeout(5)
                     self.bt_socket = bt_socket
                     print("{}: BT Connected".format(time.asctime()), file=sys.stderr)
-                except:
-                    print("{}: BT failed to connect".format(time.asctime()), file=sys.stderr)
+                except Exception as e:
+                    print("{}: BT failed to connect - {}".format(time.asctime(),e), file=sys.stderr)
                     raise OSError("Failed to connect to EV3g") from None
 
     def disconnect(self):
@@ -140,7 +140,7 @@ class EV3Messages():
                 self.connect()
             except:
                 # Failed to connect, so go to sleep for a bit and try again
-                time.sleep(1)
+                time.sleep(5)
                 continue
 
             try:
