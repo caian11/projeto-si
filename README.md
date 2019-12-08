@@ -47,6 +47,6 @@ handler.send("Rod", "rainbow")
 handler.stop()
 ```
 
-The calls to `send(name, value)` are synchronous, i.e. the code will wait until the message has been received by the other side. Any errors will be raised by the send call, so should be wrapped in a `try: ... execption: ...` block. 
+The calls to `send(name, value)` are synchronous, i.e. the code will wait until the message has been received by the other side. Any errors will be raised by the send call, so should be wrapped in a `try: ... exception: ...` block. 
 
 The calls to `get(name, timeout=None)` will block until either a message of that name is received from EV3g, or the timeout occurs. If the call times-out, the return value will be None. This call normally returns an EV3Mailbox object.
