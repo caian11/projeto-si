@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # A Python3 class for encoding and decoding EV3g Mailbox messages
-# Copyright (C) 2019 Jerry Nicholls
+# Copyright (C) 2019 Jerry Nicholls <jerry@jander.me.uk>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
