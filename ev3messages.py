@@ -114,10 +114,10 @@ class EV3Messages():
         except:
             raise
 
-        ev3mailbox = EV3Mailbox.encode(name, value, d_type)
-
         try:
-            self.bt_socket.send(ev3mailbox.payload)
+            with self.bt_lock:
+                ev3mailbox = EV3Mailbox.encode(name, value, d_type)
+                self.bt_socket.send(ev3mailbox.payload)
         except:
             self.disconnect()
             raise OSError("Failed to send to EV3g") from None

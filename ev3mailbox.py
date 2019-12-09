@@ -91,7 +91,7 @@ class EV3Mailbox:
 
         if d_type == None:
             # Attempt to work out the type. Assume text to start.
-            d_type  = str
+            d_type = str
 
             if len(valueBytes) == 1:
                 d_type = bool
